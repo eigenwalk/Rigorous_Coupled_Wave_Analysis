@@ -1,0 +1,16 @@
+Configuration:
+    Structure:
+        folder: vox_lib
+        voxel_file: square_100nm_100nm_voxel.txt
+        smoothing: None                # None, mode1, mode2
+        NV_method: False               # Normal Vector Method 
+
+    Optics:
+        nklib: nk_lib
+        wavelength: [250, 1000, 5]     # 250 ~ 1000 nm by 5nm
+        polar_angle: [0, 10, 5]        # 0 ~ 10 degree by 5
+        azimuthal_angle: [0, 10, 5]    # 0 ~ 10 degree by 5
+        polarization: 0.5              # pol x TE(s) : (1-0.5) x TM(p)
+        harmony_x: 4 
+        harmony_y: 4 
+        #dop: 1
