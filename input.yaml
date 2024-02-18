@@ -7,10 +7,10 @@ Configuration:
 
     Optics:
         nklib: nk_lib
-        wavelength: [250, 1000, 5]     # 250 ~ 1000 nm by 5nm
-        polar_angle: [0, 10, 5]        # 0 ~ 10 degree by 5
-        azimuthal_angle: [0, 10, 5]    # 0 ~ 10 degree by 5
+        wavelength: [350, 350, 5]     # 250 ~ 1000 nm by 5nm
+        polar_angle: [30, 30, 5]        # 0 ~ 10 degree by 5
+        azimuthal_angle: [0, 0, 5]    # 0 ~ 10 degree by 5
         polarization: 0.5              # pol x TE(s) : (1-0.5) x TM(p)
-        harmony_x: 4 
-        harmony_y: 4 
+        harmony_x: 1 
+        harmony_y: 1 
         #dop: 1

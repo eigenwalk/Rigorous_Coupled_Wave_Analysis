@@ -7,8 +7,9 @@
 #include <string>
 #include <map>
 #include <filesystem>
-//#include "manager/jobManager.h"
 #include "structures/inputStructure.h"
+#include "light.h" 
+#include "scatterMatrix.h" 
 
 namespace fs = std::filesystem;
 using namespace std;
@@ -20,8 +21,8 @@ class RCWA
 
     public:
 		RCWA();
-		RCWA(Inputs inpts):
-			m_input(inpts){};
+		RCWA(Input input):
+			m_input(input){};
 		~RCWA();
         //auto init(const YAML::Node& in)->void;
         auto init()->bool;
@@ -39,7 +40,8 @@ class RCWA
 		auto loadVoxel()->bool;
 
 	public:
-		Inputs m_input;
+		Input m_input;
+		Light* m_light;
 		arma::vec m_waves;
 		arma::vec m_polar_angles;
 		arma::vec m_azi_angles;

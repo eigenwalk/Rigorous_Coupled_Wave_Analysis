@@ -7,7 +7,7 @@
 
 using namespace std;
 
-struct Inputs{
+struct Input{
 	// To be deleted
 	vector<string> stack;
 	vector<float> thick;
@@ -33,6 +33,8 @@ struct Inputs{
 	int num_mater;
 	float pol;
 	float dop;
+	int hx;
+	int hy;
 };
 
 #endif

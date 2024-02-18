@@ -27,9 +27,9 @@ class JobManager
         auto start()->void;
         auto makeReport()->void;
         auto printModelInfo()->void;
-		auto inputmanager(Inputs& inpts, const YAML::Node& in)->bool;
-		auto structureUpdate(Inputs& inpts, const YAML::Node& in)->bool;
-		auto opticsUpdate(Inputs& inpts, const YAML::Node& in)->void;
+		auto inputmanager(Input& input, const YAML::Node& in)->bool;
+		auto structureUpdate(Input& input, const YAML::Node& in)->bool;
+		auto opticsUpdate(Input& input, const YAML::Node& in)->void;
 	public:
 		RCWA* m_rcwa;
 		std::string m_inputfile;

@@ -6,9 +6,9 @@ auto JobManager::init()->void
 {
 	cout << "[INFO] JobManager initialization..." << endl;
     YAML::Node config = YAML::LoadFile(m_inputfile);
-	Inputs inpts;
-	if (inputmanager(inpts, config["Configuration"])){
-		m_rcwa = new RCWA(inpts);
+	Input input;
+	if (inputmanager(input, config["Configuration"])){
+		m_rcwa = new RCWA(input);
 	}
 	else{
 		cout << "[Error] Input size is different.." << endl;
@@ -32,39 +32,41 @@ auto JobManager::printModelInfo()->void
 {
 }
 
-auto JobManager::inputmanager(Inputs& inpts, const YAML::Node& in)->bool
+auto JobManager::inputmanager(Input& input, const YAML::Node& in)->bool
 {
-	if (structureUpdate(inpts, in))
+	if (structureUpdate(input, in))
 	{
-		opticsUpdate(inpts, in);
+		opticsUpdate(input, in);
 		return true;
 	}
 	return false;
 }
 
-auto JobManager::structureUpdate(Inputs& inpts, const YAML::Node& in)->bool
+auto JobManager::structureUpdate(Input& input, const YAML::Node& in)->bool
 {
 	fs::path cur_path = fs::current_path();
-	inpts.voxlib = in["Structure"]["folder"].as<std::string>();
-	inpts.voxel = in["Structure"]["voxel_file"].as<std::string>();
-	inpts.voxel_fullpath = cur_path.generic_string() + "/" + inpts.voxlib + "/" + inpts.voxel;
+	input.voxlib = in["Structure"]["folder"].as<std::string>();
+	input.voxel = in["Structure"]["voxel_file"].as<std::string>();
+	input.voxel_fullpath = cur_path.generic_string() + "/" + input.voxlib + "/" + input.voxel;
 
-	//if (inpts.stack.size() != inpts.thick.size()){
-	if (!fs::exists(inpts.voxel_fullpath)){
-		cout << "[Error] No Voxel file found in the folder: " << inpts.voxel_fullpath << endl;
+	//if (input.stack.size() != input.thick.size()){
+	if (!fs::exists(input.voxel_fullpath)){
+		cout << "[Error] No Voxel file found in the folder: " << input.voxel_fullpath << endl;
 		return false;
 	}
 	return true;
 }
 
-auto JobManager::opticsUpdate(Inputs& inpts, const YAML::Node& in)->void
+auto JobManager::opticsUpdate(Input& input, const YAML::Node& in)->void
 {
-	inpts.nklib = in["Optics"]["nklib"].as<std::string>();
-	inpts.wavelength = in["Optics"]["wavelength"].as<vector<float>>();
-	inpts.polar_angles = in["Optics"]["polar_angle"].as<vector<float>>();
-	inpts.azi_angles = in["Optics"]["azimuthal_angle"].as<vector<float>>();
-	inpts.pol = in["Optics"]["polarization"].as<float>();
-	//inpts.dop = in["Optics"]["dop"].as<float>();
+	input.nklib = in["Optics"]["nklib"].as<std::string>();
+	input.wavelength = in["Optics"]["wavelength"].as<vector<float>>();
+	input.polar_angles = in["Optics"]["polar_angle"].as<vector<float>>();
+	input.azi_angles = in["Optics"]["azimuthal_angle"].as<vector<float>>();
+	input.pol = in["Optics"]["polarization"].as<float>();
+	input.hx = in["Optics"]["harmony_x"].as<int>();
+	input.hy = in["Optics"]["harmony_y"].as<int>();
+	//input.dop = in["Optics"]["dop"].as<float>();
 }
 
 
