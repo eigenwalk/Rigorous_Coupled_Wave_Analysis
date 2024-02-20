@@ -38,6 +38,16 @@ class RCWA
 		auto checkvLength(vector<T>& v, int& s)->bool;
 		auto loadNK(string& mat)->void;
 		auto loadVoxel()->bool;
+		auto scatteringMatrix(int& i, int& j, int& k)->void;
+		auto getToeplitzMatrix(cx_mat& Er_toep, int& idx)->void;
+		auto setToeplitzMatrix()->void;
+		auto getEigen(cx_mat& W, cx_mat& V, cx_mat& Eval, string mode, int idx)->void;
+		auto getAB(cx_mat& A, cx_mat& B, cx_mat& Wi, cx_mat& Vi)->void;
+		auto getABX(cx_mat& A, cx_mat& B, cx_mat& X, cx_mat& Wi, cx_mat& Vi, cx_mat& W_air, cx_mat& V_air, cx_mat& Eval, double& k0, double& thk)->void;
+		auto getSmat_r(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B)->void;
+		auto getSmat_t(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B)->void;
+		auto getSmat_l(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B, cx_mat& X)->void;
+		auto setZero(cx_mat& M, double decimal)->void;
 
 	public:
 		Input m_input;

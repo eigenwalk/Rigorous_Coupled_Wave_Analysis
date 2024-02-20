@@ -222,6 +222,7 @@ auto RCWA::stonSplit(std::string& str)->vector<T>
 auto RCWA::start()->void
 {
   cout << "[INFO] RCWA started over wavelength" << endl;
+  setToeplitzMatrix();
   for(int k = 0; k < m_azi_angles.size(); ++k){
     cout << " " << endl;
     double azi_ang = m_azi_angles[k];
@@ -239,10 +240,11 @@ auto RCWA::start()->void
         double wav = m_waves[i];
         m_light = new Light(m_input);
 		m_light->setKvector(wav, polar_ang, azi_ang);
-		m_light->m_Kx.print("Kx");
-		m_light->m_Ky.print("Ky");
-        //toeplitzMatrix(i, j, k);
-        //scatteringMatrix(i, j, k);	
+		//m_light->m_Kx.print("Kx");
+		//m_light->m_Ky.print("Ky");
+
+        scatteringMatrix(i, j, k);	
+        //redhefferProduct(i, j, k);	
 		//calcReflection(i, j, k);
       }
     }
@@ -250,6 +252,116 @@ auto RCWA::start()->void
 }
 
 
+auto RCWA::scatteringMatrix(int& i, int& j, int& k)->void
+{
+  cx_mat Eigvec_W_air;
+  cx_mat Eigvec_V_air;
+  cx_mat Eigval_air;
+  cx_mat A_air;
+  cx_mat B_air;
+  cx_mat S11_air;
+  cx_mat S12_air;
+  cx_mat S21_air;
+  cx_mat S22_air;
+  getEigen(Eigvec_W_air, Eigvec_V_air, Eigval_air, "air", 0);
+  getAB(A_air, B_air, Eigvec_W_air, Eigvec_V_air);
+  getSmat_r(S11_air, S12_air, S21_air, S22_air, A_air, B_air);
+
+  // Layers Loop!
+  //for ()
+}
+
+auto RCWA::getSmat_r(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B)->void
+{
+  S11 = -inv(A) * B;
+  S12 = 2 * inv(A);
+  S21 = 0.5 * (A - B * inv(A) * B);
+  S22 = B * inv(A);
+}
+
+auto RCWA::getSmat_t(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B)->void
+{
+  S11 = inv(B) * A;
+  S12 = 0.5 * (A - B * inv(A) * B);
+  S22 = 2 * inv(A);
+  S22 = -inv(A) * B;
+}
+
+auto RCWA::getSmat_l(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B, cx_mat& X)->void
+{
+  cx_mat XBA_X = X * B * inv(A) * X;
+  cx_mat XBA_XB = XBA_X * B;
+  cx_mat XBA_XA = XBA_X * A;
+  cx_mat C = A - XBA_XB;
+  S11 = inv(C) * XBA_XA - B;
+  S12 = (inv(C) * X) * (A - B * inv(A) * B);
+  S21 = S12;
+  S22 = S11;
+}
+
+auto RCWA::getAB(cx_mat& A, cx_mat& B, cx_mat& Wi, cx_mat& Vi)->void
+{
+  A = inv(Wi) * Wi + inv(Vi) * Vi;
+  B = inv(Wi) * Wi - inv(Vi) * Vi;
+  setZero(A, 1e-10);
+  setZero(B, 1e-10);
+}
+
+auto RCWA::getABX(cx_mat& A, cx_mat& B, cx_mat& X, cx_mat& Wi, cx_mat& Vi, cx_mat& W_air, cx_mat& V_air, cx_mat& Eval, double& k0, double& thk)->void
+{
+  A = inv(Wi) * Wi + inv(Vi) * Vi;
+  B = inv(Wi) * Wi - inv(Vi) * Vi;
+  X = expmat(-Eval * m_light->m_k0 * thk);
+  setZero(A, 1e-10);
+  setZero(B, 1e-10);
+  setZero(X, 1e-10);
+}
+
+auto RCWA::getEigen(cx_mat& W, cx_mat& V, cx_mat& Eval, string mode, int idx)->void
+{
+  int matxy = m_light->m_nHxy;
+  cx_mat I = cx_mat(matxy, matxy, fill::eye);
+  cx_mat P = cx_mat(2 * matxy, 2 * matxy, fill::zeros);
+  cx_mat Q = cx_mat(2 * matxy, 2 * matxy, fill::zeros);
+  cx_mat Er_toep   = cx_mat(matxy, matxy, fill::eye);
+  cx_mat Er_toep_i = inv(Er_toep);
+  if (mode != "air") getToeplitzMatrix(Er_toep, idx);
+
+  P.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * Er_toep_i * m_light->m_Ky;
+  P.submat(0, matxy, matxy-1, 2*matxy-1) = I - m_light->m_Kx * Er_toep_i * m_light->m_Kx;
+  P.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * Er_toep_i * m_light->m_Ky - 1 * I;
+  P.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1 * m_light->m_Ky * Er_toep_i * m_light->m_Kx;
+
+  Q.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * m_light->m_Ky;
+  Q.submat(0, matxy, matxy-1, 2*matxy-1) = Er_toep - m_light->m_Kx * m_light->m_Kx;
+  Q.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * m_light->m_Ky - 1 * Er_toep;
+  Q.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1 * m_light->m_Ky * m_light->m_Kx;
+
+  cx_mat PQ = P * Q;
+  setZero(PQ, 1e-10);
+  cx_vec eval;
+  eig_gen(eval, W, PQ);
+
+  eval = sqrt(eval);
+  Eval = diagmat(eval);
+  cx_mat Eval_i = inv(Eval);
+  V = Q * W * Eval_i;
+}
+
+auto RCWA::setZero(cx_mat& M, double decimal)->void
+{
+  mat M_abs = abs(M);
+  uvec indices = find(M_abs < decimal);
+  M.elem(indices).zeros();
+}
+
+auto RCWA::getToeplitzMatrix(cx_mat& Er_toep, int& idx)->void
+{
+}
+
+auto RCWA::setToeplitzMatrix()->void
+{
+}
 
 RCWA::RCWA(){
 }
