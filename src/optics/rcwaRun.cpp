@@ -77,6 +77,8 @@ auto RCWA::loadVoxel()->bool
   	    m_input.dz = stod(mat_v[7]);
         m_input.nz = stoi(mat_v[9]);
   	    m_stack.resize(m_input.nz);
+		m_xLen = m_input.nx * m_input.dxy;
+		m_yLen = m_input.ny * m_input.dxy;
   	    cout << "[INFO] Parsing voxel structure nx: " << m_input.nx << " ny: " << m_input.ny << " nz: " << m_input.nz << " dxy: " << m_input.dxy << " dz: " << m_input.dz << endl;
       }
       else if (idx == 1){
@@ -129,10 +131,10 @@ auto RCWA::loadVoxel()->bool
           if(!checkvLength<int>(vox_v, m_input.nx)) return false;
           fillVoxel(vox_v, mat_lay, j);
         }
-          cout << "debug: " << idx2 << endl;
-          m_stack[idx2-1] = mat_lay;
+        cout << "debug: " << idx2 << endl;
+        m_stack[idx2-1] = mat_lay;
       }
-        ++idx;
+      ++idx;
   	}
   }
   return true;
@@ -184,7 +186,9 @@ auto RCWA::loadNK(std::string& mat)->void
   interp1(vec_w0, vec_n0, m_waves, m_n[mat], "linear");
   interp1(vec_w0, vec_k0, m_waves, m_k[mat], "linear");
   cx_vec N0(m_n[mat], -1*m_k[mat]);
+  
   m_eps[mat] = pow(N0, 2);
+  //m_eps[mat] = cx_vec(pow(m_n[mat], 2)-pow(m_k[mat],2), -2 * m_n[mat] * m_k[mat]);
 }
 
 auto RCWA::stringSplit(std::string& str)->vector<string> 
@@ -209,7 +213,8 @@ auto RCWA::stonSplit(std::string& str)->vector<T>
   vector<T> res(5000);
   int idx = 0;
   while(getline(ss, val, '\t')){
-    T num; if (typeid(T) == typeid(int)) num = stoi(val);
+    T num; 
+	if (typeid(T) == typeid(int)) num = stoi(val);
     else if (typeid(T) == typeid(float)) num = stof(val);
     else if (typeid(T) == typeid(double)) num = stod(val);
     res[idx] = num;
@@ -222,7 +227,6 @@ auto RCWA::stonSplit(std::string& str)->vector<T>
 auto RCWA::start()->void
 {
   cout << "[INFO] RCWA started over wavelength" << endl;
-  setToeplitzMatrix();
   for(int k = 0; k < m_azi_angles.size(); ++k){
     cout << " " << endl;
     double azi_ang = m_azi_angles[k];
@@ -243,6 +247,7 @@ auto RCWA::start()->void
 		//m_light->m_Kx.print("Kx");
 		//m_light->m_Ky.print("Ky");
 
+		setToeplitzMatrix(i);
         scatteringMatrix(i, j, k);	
         //redhefferProduct(i, j, k);	
 		//calcReflection(i, j, k);
@@ -357,11 +362,199 @@ auto RCWA::setZero(cx_mat& M, double decimal)->void
 
 auto RCWA::getToeplitzMatrix(cx_mat& Er_toep, int& idx)->void
 {
+
 }
 
-auto RCWA::setToeplitzMatrix()->void
+auto RCWA::setToeplitzMatrix(int& wid)->void
 {
+  vector<cx_mat> voxel(m_input.nz);
+  // For layers
+  int matxy = m_light->m_nHxy;
+  m_toep = vector<arma::cx_mat>(m_input.nz);
+  m_toep_i = vector<arma::cx_mat>(m_input.nz);
+  m_toep_delta = vector<arma::cx_mat>(m_input.nz);
+  m_Nxx = vector<arma::cx_mat>(m_input.nz);
+  m_Nxy = vector<arma::cx_mat>(m_input.nz);
+  m_Nyy = vector<arma::cx_mat>(m_input.nz);
+  for(int i = 0; i < m_input.nz;  ++i){
+    mat Mat = m_stack[i];
+	voxel[i] = cx_mat(m_input.ny, m_input.nx, fill::zeros);
+	m_toep[i] = cx_mat(matxy, matxy, fill::zeros);
+	m_toep_i[i] = cx_mat(matxy, matxy, fill::zeros);
+	m_toep_delta[i] = cx_mat(matxy, matxy, fill::zeros);
+	m_Nxx[i] = cx_mat(matxy, matxy, fill::zeros);
+	m_Nxy[i] = cx_mat(matxy, matxy, fill::zeros);
+	m_Nyy[i] = cx_mat(matxy, matxy, fill::zeros);
+	for(int iy = 0; iy < m_input.ny; ++iy){
+      for(int ix = 0; ix < m_input.nx; ++ix){
+          int matidx = Mat(iy, ix);
+		  string mat = m_input.mater[matidx];
+		  complex<double> eps = m_eps[mat](wid); 
+		  voxel[i](iy, ix) = eps; 
+	  }
+	}
+
+	auto N = setNormalVectorField(voxel[i], i);
+
+    cx_mat eps_fft = fft2(voxel[i])/(voxel[i].n_rows * voxel[i].n_cols);
+    cx_mat eps_fft_i = fft2(1/voxel[i])/(voxel[i].n_rows * voxel[i].n_cols);
+    for(int i1 = 0; i1 < m_light->m_2nhx; ++i1){
+      for(int j1 = 0; j1 < m_light->m_2nhy; ++j1){
+        int I1 = i1 * m_light->m_2nhy + j1;
+        for(int i2 = 0; i2 < m_light->m_2nhx; ++i2){
+          for(int j2 = 0; j2 < m_light->m_2nhy; ++j2){
+          int J1 = i2 * m_light->m_2nhy + j2;
+		  int I2 = (voxel[i].n_cols + i1 - i2)%voxel[i].n_cols;
+		  int J2 = (voxel[i].n_rows + j1 - j2)%voxel[i].n_rows;
+		  m_toep[i](J1, I1) = eps_fft(J2, I2);
+		  m_toep_i[i](J1, I1) = eps_fft_i(J2, I2);
+		  //m_Nxx[i](J1, I1) = nxx(J2, I2);
+		  //m_Nxy[i](J1, I1) = nxy(J2, I2);
+		  //m_Nyy[i](J1, I1) = nyy(J2, I2);
+		  }
+		}
+	  }
+	}
+	// Inverse Rule
+	m_toep_i[i] = inv(m_toep_i[i]);
+    m_toep_delta[i] = m_toep[i] - m_toep_i[i];
+	saveArma(voxel[i], "eps", i);
+	saveArma(eps_fft, "eps_fft", i);
+	saveArma(m_toep[i], "eps_toep", i);
+	saveArma(m_toep_i[i], "eps_toep_i", i);
+	saveArma(m_toep_delta[i], "eps_toep_delta", i);
+
+	//eps_xx = toep - delta * Nxx
+	//eps_xy = - delta * Nxy
+	//eps_yx = - delta * Nxy
+	//eps_yy = toep - delta * Nyy
+	//eps_zz = toep
+  }	
 }
+
+auto RCWA::setNormalVectorField(cx_mat& M, int i)->map<string, mat>
+{
+  map<string, mat> Norm;
+  mat R = abs(M);
+  int y_num = R.n_rows;
+  int x_num = R.n_cols;
+
+  if(R.max() == R.min()){
+    cout << "R is constant" << endl;
+	mat nx(y_num, x_num, fill::zeros);
+	mat ny(y_num, x_num, fill::zeros);
+	Norm["Nx"] = nx;
+	Norm["Ny"] = ny;
+    return Norm;
+  }
+
+  vec vx = linspace<vec>(-1, 1, (x_num));
+  vec gaus1 = normpdf(vx, 0, 1.0/(x_num));
+  double mvx = max(gaus1);
+  gaus1 = gaus1/mvx;
+
+  //vec gaus2 = vx % gaus1;
+  vec gaus2(x_num-1, fill::zeros);
+  for (int i = 0; i < x_num; ++i){
+    gaus2 = gaus1 % vx / abs(vx);
+  }
+  gaus2.replace(datum::nan, 0);
+
+  mat gcon  = circ_toeplitz(gaus1).t();
+  mat gcon2 = circ_toeplitz(gaus2).t();
+
+  gcon = censhift2d<mat>(gcon);
+  gcon2 = censhift2d<mat>(gcon2);
+
+  mat nx = gcon * R * gcon2.t();
+  mat ny = gcon2 * R * gcon;
+
+//  mat Anxy = sqrt(nx%nx + ny%ny);
+//  nx /= Anxy; 
+//  ny /= Anxy; 
+//  nx.replace(datum::nan, 0);
+//  ny.replace(datum::nan, 0);
+
+  saveArma(M, "gcon_M", i);
+  saveArma(gcon, "gcon", i);
+  saveArma(gcon2, "gcon2", i);
+  saveArma(nx, "normal_x", i);
+  saveArma(ny, "normal_y", i);
+
+  Norm["Nx"] = nx;
+  Norm["Ny"] = ny;
+
+  return Norm;
+}
+
+auto RCWA::fftshift2d(const cx_mat& X)->cx_mat
+{
+  int rows = X.n_rows;
+  int cols = X.n_cols;
+  int midRow = rows / 2;
+  int midCol = cols / 2;
+
+  cx_mat Res(rows, cols, fill::zeros);
+  Res.submat(0, 0, midRow - 1, midCol - 1) = X.submat(midRow, midCol, rows - 1, cols - 1);
+  Res.submat(midRow, 0, rows - 1, midCol - 1) = X.submat(0, midCol, midRow - 1, cols - 1);
+  Res.submat(0, midCol, midRow - 1, cols - 1) = X.submat(midRow, 0, rows - 1, midCol - 1);
+  Res.submat(midRow, midCol, rows - 1, cols - 1) = X.submat(0, 0, midRow - 1, midCol - 1);
+  return Res;
+}
+
+template <typename T>
+auto RCWA::censhift2d(const T& X)->T
+{
+  int rows = X.n_rows;
+  int cols = X.n_cols;
+  int midRow = rows / 2;
+  int midCol = cols / 2;
+
+  T Res(rows, cols, fill::zeros);
+  Res.submat(0, 0, midRow - 1, midCol - 1) = X.submat(0, midCol, midRow - 1, cols - 1);
+  Res.submat(midRow, 0, rows - 1, midCol - 1) = X.submat(midRow, midCol, rows - 1, cols - 1);
+  Res.submat(0, midCol, midRow - 1, cols - 1) = X.submat(0, 0, midRow - 1, midCol - 1);
+  Res.submat(midRow, midCol, rows - 1, cols - 1) = X.submat(midRow, 0, rows - 1, midCol - 1);
+  
+  return Res;
+}
+
+auto RCWA::saveArma(cx_mat& M, string file, int id)->void
+{
+  mat A = real(M);
+  mat B = imag(M);
+  saveArma(A, file+"_re", id);
+  saveArma(B, file+"_im", id);
+}
+
+auto RCWA::saveArma(mat& M, string file, int id)->void
+{
+  int nr = M.n_rows;
+  int nc = M.n_cols;
+  string file1 = file + "_" + to_string(id) + ".txt";
+  fs::path cur_path = fs::current_path();
+  string path = cur_path.generic_string() + "/tmp/";
+  if (!fs::is_directory(path)) fs::create_directory(path);
+  string outfile1 = path + file1; 
+  cout << "[INFO] Saving tmp results.. file: "  << endl;
+  ofstream newFile1;
+  newFile1.open(outfile1);
+  for(int r = 0; r < nr; ++r){
+    for(int c = 0; c < nc; ++c){
+ 	  newFile1 << real(M(r, c));
+  	  if (c == nc-1) continue;
+      else{
+	    newFile1 << '\t';
+	  }
+    }
+    if (r == nr-1) continue;
+    else{
+	  newFile1 << '\n';
+    }
+  }
+  newFile1.close();
+}
+
 
 RCWA::RCWA(){
 }

@@ -40,7 +40,8 @@ class RCWA
 		auto loadVoxel()->bool;
 		auto scatteringMatrix(int& i, int& j, int& k)->void;
 		auto getToeplitzMatrix(cx_mat& Er_toep, int& idx)->void;
-		auto setToeplitzMatrix()->void;
+		auto setToeplitzMatrix(int& wid)->void;
+		auto setNormalVectorField(cx_mat& M, int i)->map<string, mat>;
 		auto getEigen(cx_mat& W, cx_mat& V, cx_mat& Eval, string mode, int idx)->void;
 		auto getAB(cx_mat& A, cx_mat& B, cx_mat& Wi, cx_mat& Vi)->void;
 		auto getABX(cx_mat& A, cx_mat& B, cx_mat& X, cx_mat& Wi, cx_mat& Vi, cx_mat& W_air, cx_mat& V_air, cx_mat& Eval, double& k0, double& thk)->void;
@@ -48,6 +49,13 @@ class RCWA
 		auto getSmat_t(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B)->void;
 		auto getSmat_l(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B, cx_mat& X)->void;
 		auto setZero(cx_mat& M, double decimal)->void;
+		
+		auto saveArma(cx_mat& M, string file, int id)->void;
+		auto saveArma(mat& M, string file, int id)->void;
+		auto fftshift2d(const cx_mat& X)->cx_mat;
+
+		template <typename T>
+		auto censhift2d(const T& X)->T;
 
 	public:
 		Input m_input;
@@ -56,6 +64,14 @@ class RCWA
 		arma::vec m_polar_angles;
 		arma::vec m_azi_angles;
 		vector<arma::mat> m_stack;
+		vector<arma::cx_mat> m_toep;
+		vector<arma::cx_mat> m_toep_i;
+		vector<arma::cx_mat> m_toep_delta;
+		vector<arma::cx_mat> m_Nxx;
+		vector<arma::cx_mat> m_Nxy;
+		vector<arma::cx_mat> m_Nyy;
+		double m_xLen;
+		double m_yLen;
 		map<string, arma::vec> m_n;
 		map<string, arma::vec> m_k;
 		map<string, arma::cx_vec> m_eps;

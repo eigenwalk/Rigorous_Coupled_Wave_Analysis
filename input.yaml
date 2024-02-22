@@ -11,6 +11,6 @@ Configuration:
         polar_angle: [30, 30, 5]        # 0 ~ 10 degree by 5
         azimuthal_angle: [30, 30, 5]    # 0 ~ 10 degree by 5
         polarization: 0.5              # pol x TE(s) : (1-0.5) x TM(p)
-        harmony_x: 0 
-        harmony_y: 0 
+        harmony_x: 4 
+        harmony_y: 4 
         #dop: 1
