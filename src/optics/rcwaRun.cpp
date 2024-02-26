@@ -259,63 +259,85 @@ auto RCWA::start()->void
 
 auto RCWA::scatteringMatrix(int& i, int& j, int& k)->void
 {
-  cx_mat Eigvec_W_air;
-  cx_mat Eigvec_V_air;
-  cx_mat Eigval_air;
-  cx_mat A_air;
-  cx_mat B_air;
-  cx_mat S11_air;
-  cx_mat S12_air;
-  cx_mat S21_air;
-  cx_mat S22_air;
-  getEigen(Eigvec_W_air, Eigvec_V_air, Eigval_air, "air", 0);
-  getAB(A_air, B_air, Eigvec_W_air, Eigvec_V_air);
-  getSmat_r(S11_air, S12_air, S21_air, S22_air, A_air, B_air);
+  cx_mat W_air, V_air;
+  cx_mat eigval_air;
+  cx_mat A_air, B_air;
+  cx_mat S11_R, S11_T, S11;
+  cx_mat S12_R, S12_T, S12;
+  cx_mat S21_R, S21_T, S21;
+  cx_mat S22_R, S22_T, S22;
+  getEigen(W_air, V_air, eigval_air, "air", 0);
+  getAB(A_air, B_air, W_air, V_air);
+  getSmat_r(S11_R, S12_R, S21_R, S22_R, A_air, B_air);
+  getSmat_t(S11_T, S12_T, S21_T, S22_T, A_air, B_air);
 
   // Layers Loop!
-  //for ()
+  for(int i = 0; i < m_input.nz;  ++i){
+    double thk = m_input.dz;
+	if(m_input.dz<0) thk = m_input.dz_v[i];
+    cx_mat W, V;
+    cx_mat eigval;
+    cx_mat A, B;
+    getEigen(W, V, eigval, "layer", i);
+	cx_mat X = exp(-m_light->m_k0 * eigval * thk);
+    getAB(A, B, W_air, V_air, W, V);
+    getSmat_l(S11, S12, S21, S22, A, B, X);
+	
+
+    // Redheffer Product()
+
+
+  }
 }
 
 auto RCWA::getSmat_r(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B)->void
 {
-  S11 = -inv(A) * B;
+  S11 = -solve(A, B); //-inv(A) * B;
   S12 = 2 * inv(A);
-  S21 = 0.5 * (A - B * inv(A) * B);
+  S21 = 0.5 * (A - B * solve(A, B)); //inv(A) * B
   S22 = B * inv(A);
 }
 
 auto RCWA::getSmat_t(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B)->void
 {
-  S11 = inv(B) * A;
-  S12 = 0.5 * (A - B * inv(A) * B);
+  S11 = solve(B, A); //inv(B) * A;
+  S12 = 0.5 * (A - B * solve(A, B)); //inv(A) * B);
   S22 = 2 * inv(A);
   S22 = -inv(A) * B;
 }
 
 auto RCWA::getSmat_l(cx_mat& S11, cx_mat& S12, cx_mat& S21, cx_mat& S22, cx_mat& A, cx_mat& B, cx_mat& X)->void
 {
-  cx_mat XBA_X = X * B * inv(A) * X;
+  cx_mat XBA_X = X * B * solve(A, X);  // inv(A) * X;
   cx_mat XBA_XB = XBA_X * B;
   cx_mat XBA_XA = XBA_X * A;
   cx_mat C = A - XBA_XB;
-  S11 = inv(C) * XBA_XA - B;
-  S12 = (inv(C) * X) * (A - B * inv(A) * B);
+  S11 = solve(C, XBA_XA) - B;  //inv(C) * XBA_XA - B;
+  S12 = solve(C, X) * (A - B * solve(A, B)); //(inv(C) * X) * (A - B * inv(A) * B);
   S21 = S12;
   S22 = S11;
 }
 
-auto RCWA::getAB(cx_mat& A, cx_mat& B, cx_mat& Wi, cx_mat& Vi)->void
+auto RCWA::getAB(cx_mat& A, cx_mat& B, cx_mat& W, cx_mat& V)->void
 {
-  A = inv(Wi) * Wi + inv(Vi) * Vi;
-  B = inv(Wi) * Wi - inv(Vi) * Vi;
+  A = solve(W, W) + solve(V, V); //inv(Wi) * Wi + inv(Vi) * Vi;
+  B = solve(W, W) - solve(V, V);   //inv(Wi) * Wi - inv(Vi) * Vi
+  setZero(A, 1e-10);
+  setZero(B, 1e-10);
+}
+
+auto RCWA::getAB(cx_mat& A, cx_mat& B, cx_mat& W, cx_mat& V, cx_mat& Wi, cx_mat& Vi)->void
+{
+  A = solve(Wi, W) + solve(Vi, V); //inv(Wi) * Wi + inv(Vi) * Vi;
+  B = solve(Wi, W) - solve(Vi, V);   //inv(Wi) * Wi - inv(Vi) * Vi
   setZero(A, 1e-10);
   setZero(B, 1e-10);
 }
 
 auto RCWA::getABX(cx_mat& A, cx_mat& B, cx_mat& X, cx_mat& Wi, cx_mat& Vi, cx_mat& W_air, cx_mat& V_air, cx_mat& Eval, double& k0, double& thk)->void
 {
-  A = inv(Wi) * Wi + inv(Vi) * Vi;
-  B = inv(Wi) * Wi - inv(Vi) * Vi;
+  A = solve(Wi, Wi) + solve(Vi, Vi); //inv(Wi) * Wi + inv(Vi) * Vi;
+  B = solve(Wi, Wi) - solve(Vi, Vi); //inv(Wi) * Wi - inv(Vi) * Vi;
   X = expmat(-Eval * m_light->m_k0 * thk);
   setZero(A, 1e-10);
   setZero(B, 1e-10);
@@ -328,19 +350,25 @@ auto RCWA::getEigen(cx_mat& W, cx_mat& V, cx_mat& Eval, string mode, int idx)->v
   cx_mat I = cx_mat(matxy, matxy, fill::eye);
   cx_mat P = cx_mat(2 * matxy, 2 * matxy, fill::zeros);
   cx_mat Q = cx_mat(2 * matxy, 2 * matxy, fill::zeros);
-  cx_mat Er_toep   = cx_mat(matxy, matxy, fill::eye);
-  cx_mat Er_toep_i = inv(Er_toep);
-  if (mode != "air") getToeplitzMatrix(Er_toep, idx);
+  cx_mat toep_xx   = cx_mat(matxy, matxy, fill::eye);
+  cx_mat toep_yy   = cx_mat(matxy, matxy, fill::eye);
+  cx_mat toep_i    = inv(toep_xx);
 
-  P.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * Er_toep_i * m_light->m_Ky;
-  P.submat(0, matxy, matxy-1, 2*matxy-1) = I - m_light->m_Kx * Er_toep_i * m_light->m_Kx;
-  P.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * Er_toep_i * m_light->m_Ky - 1 * I;
-  P.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1 * m_light->m_Ky * Er_toep_i * m_light->m_Kx;
+  if (mode != "air"){
+    toep_xx = m_toep_xx[idx];
+    toep_yy = m_toep_yy[idx];
+    toep_i  = inv(m_toep[idx]);
+  }
+
+  P.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * toep_i * m_light->m_Ky;
+  P.submat(0, matxy, matxy-1, 2*matxy-1) = I - m_light->m_Kx * toep_i * m_light->m_Kx;
+  P.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * toep_i * m_light->m_Ky - I;
+  P.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * toep_i * m_light->m_Kx;
 
   Q.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * m_light->m_Ky;
-  Q.submat(0, matxy, matxy-1, 2*matxy-1) = Er_toep - m_light->m_Kx * m_light->m_Kx;
-  Q.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * m_light->m_Ky - 1 * Er_toep;
-  Q.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1 * m_light->m_Ky * m_light->m_Kx;
+  Q.submat(0, matxy, matxy-1, 2*matxy-1) = toep_yy - m_light->m_Kx * m_light->m_Kx;
+  Q.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * m_light->m_Ky - toep_xx;
+  Q.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * m_light->m_Kx;
 
   cx_mat PQ = P * Q;
   setZero(PQ, 1e-10);
@@ -370,74 +398,85 @@ auto RCWA::setToeplitzMatrix(int& wid)->void
   vector<cx_mat> voxel(m_input.nz);
   // For layers
   int matxy = m_light->m_nHxy;
-  m_toep = vector<arma::cx_mat>(m_input.nz);
-  m_toep_i = vector<arma::cx_mat>(m_input.nz);
-  m_toep_delta = vector<arma::cx_mat>(m_input.nz);
-  m_Nxx = vector<arma::cx_mat>(m_input.nz);
-  m_Nxy = vector<arma::cx_mat>(m_input.nz);
-  m_Nyy = vector<arma::cx_mat>(m_input.nz);
+  m_toep_xx = vector<arma::cx_mat>(m_input.nz);
+  m_toep_xy = vector<arma::cx_mat>(m_input.nz);
+  m_toep_yx = vector<arma::cx_mat>(m_input.nz);
+  m_toep_yy = vector<arma::cx_mat>(m_input.nz);
+  m_toep    = vector<arma::cx_mat>(m_input.nz);
+
   for(int i = 0; i < m_input.nz;  ++i){
     mat Mat = m_stack[i];
-	voxel[i] = cx_mat(m_input.ny, m_input.nx, fill::zeros);
-	m_toep[i] = cx_mat(matxy, matxy, fill::zeros);
-	m_toep_i[i] = cx_mat(matxy, matxy, fill::zeros);
-	m_toep_delta[i] = cx_mat(matxy, matxy, fill::zeros);
-	m_Nxx[i] = cx_mat(matxy, matxy, fill::zeros);
-	m_Nxy[i] = cx_mat(matxy, matxy, fill::zeros);
-	m_Nyy[i] = cx_mat(matxy, matxy, fill::zeros);
+	cx_mat voxel = cx_mat(m_input.ny, m_input.nx, fill::zeros);
+	cx_mat toep = cx_mat(matxy, matxy, fill::zeros);
+	cx_mat toep_i = cx_mat(matxy, matxy, fill::zeros);
+	cx_mat toep_delta = cx_mat(matxy, matxy, fill::zeros);
+	cx_mat Nxx = cx_mat(matxy, matxy, fill::zeros);
+	cx_mat Nxy = cx_mat(matxy, matxy, fill::zeros);
+	cx_mat Nyy = cx_mat(matxy, matxy, fill::zeros);
 	for(int iy = 0; iy < m_input.ny; ++iy){
       for(int ix = 0; ix < m_input.nx; ++ix){
           int matidx = Mat(iy, ix);
 		  string mat = m_input.mater[matidx];
 		  complex<double> eps = m_eps[mat](wid); 
-		  voxel[i](iy, ix) = eps; 
+		  voxel(iy, ix) = eps; 
 	  }
 	}
 
-	auto N = setNormalVectorField(voxel[i], i);
-	//Nx = N["Nx"]
-	//Ny = N["Ny"]
+	auto N = setNormalVectorField(voxel, i);
 
-    cx_mat eps_fft = fft2(voxel[i])/(voxel[i].n_rows * voxel[i].n_cols);
-    cx_mat eps_fft_i = fft2(1/voxel[i])/(voxel[i].n_rows * voxel[i].n_cols);
+    cx_mat eps_fft = fft2(voxel)/(voxel.n_rows * voxel.n_cols);
+    cx_mat eps_fft_i = fft2(1/voxel)/(voxel.n_rows * voxel.n_cols);
+
+	cx_mat NXX = fft2(N["Nx"]%N["Nx"])/(N["Nx"].n_rows * N["Nx"].n_cols); 
+	cx_mat NYY = fft2(N["Ny"]%N["Ny"])/(N["Ny"].n_rows * N["Ny"].n_cols); 
+	cx_mat NXY = fft2(N["Nx"]%N["Ny"])/(N["Nx"].n_rows * N["Nx"].n_cols); 
+
     for(int i1 = 0; i1 < m_light->m_2nhx; ++i1){
       for(int j1 = 0; j1 < m_light->m_2nhy; ++j1){
         int I1 = i1 * m_light->m_2nhy + j1;
         for(int i2 = 0; i2 < m_light->m_2nhx; ++i2){
           for(int j2 = 0; j2 < m_light->m_2nhy; ++j2){
           int J1 = i2 * m_light->m_2nhy + j2;
-		  int I2 = (voxel[i].n_cols + i1 - i2)%voxel[i].n_cols;
-		  int J2 = (voxel[i].n_rows + j1 - j2)%voxel[i].n_rows;
-		  m_toep[i](J1, I1) = eps_fft(J2, I2);
-		  m_toep_i[i](J1, I1) = eps_fft_i(J2, I2);
-		  //m_Nxx[i](J1, I1) = nxx(J2, I2);
-		  //m_Nxy[i](J1, I1) = nxy(J2, I2);
-		  //m_Nyy[i](J1, I1) = nyy(J2, I2);
+		  int I2 = (voxel.n_cols + i1 - i2)%voxel.n_cols;
+		  int J2 = (voxel.n_rows + j1 - j2)%voxel.n_rows;
+		  toep(J1, I1) = eps_fft(J2, I2);
+		  toep_i(J1, I1) = eps_fft_i(J2, I2);
+		  Nxx(J1, I1) = NXX(J2, I2);
+		  Nyy(J1, I1) = NYY(J2, I2);
+		  Nxy(J1, I1) = NXY(J2, I2);
 		  }
 		}
 	  }
 	}
 	// Inverse Rule
-	m_toep_i[i] = inv(m_toep_i[i]);
-    m_toep_delta[i] = m_toep[i] - m_toep_i[i];
-	saveArma(voxel[i], "eps", i);
-	saveArma(eps_fft, "eps_fft", i);
-	saveArma(m_toep[i], "eps_toep", i);
-	saveArma(m_toep_i[i], "eps_toep_i", i);
-	saveArma(m_toep_delta[i], "eps_toep_delta", i);
+	toep_i = inv(toep_i);
+    toep_delta = toep - toep_i;
 
-	//eps_xx = toep - delta * Nxx
-	//eps_xy = - delta * Nxy
-	//eps_yx = - delta * Nxy
-	//eps_yy = toep - delta * Nyy
-	//eps_zz = toep
+	saveArma(voxel, "eps", i);
+	saveArma(eps_fft, "eps_fft", i);
+	saveArma(toep, "eps_toep", i);
+	saveArma(toep_i, "eps_toep_i", i);
+	saveArma(toep_delta, "eps_toep_delta", i);
+	saveArma(Nxx, "NORM_nxx", i);
+	saveArma(Nyy, "NORM_nyy", i);
+	saveArma(Nxy, "NORM_nxy", i);
+
+	m_toep_xx[i] = toep - toep_delta * Nxx;
+	m_toep_xy[i] = - toep_delta * Nxy;
+	m_toep_yx[i] = - toep_delta * Nxy;
+	m_toep_yy[i] = toep - toep_delta * Nyy;
+	m_toep[i] = toep;
   }	
 }
 
 auto RCWA::setNormalVectorField(cx_mat& M, int i)->map<string, mat>
 {
-  // Normal vector method for the RCWA with automated vector field generation
-  // by Peter Gotz et al. (2008) Optical Express
+  /* References
+  [1] Normal vector method for the RCWA with automated vector field generation
+      by Peter Gotz et al. (2008) Optical Express
+  [2] Normal vector moethod for convergence improvement using the RCWA for crossewd gatings
+      by Thomas Schuster eet al. (2007) J. Opt. Soc. Am. A
+   */
 
   map<string, mat> Norm;
   mat R = abs(M);

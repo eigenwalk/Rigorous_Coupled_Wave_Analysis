@@ -19,7 +19,7 @@ auto Light::setKvector(const double& wav, const double& polar, const double& azi
   m_Ly = m_input->dxy * m_input->ny;
 
 
-  // m_k0 to be used in (z .= k0 * z ). Because Kx/Ky is normalized with k0
+  // m_k0 to be used in (z := k0 * z for X; exp(-k0*lam*thk)). Because Kx/Ky is normalized with k0
   m_k0 = 2 * PI / wav;   
   m_ks(0) = sin(polar * RAD) * cos(azi * RAD);
   m_ks(1) = sin(polar * RAD) * sin(azi * RAD);
