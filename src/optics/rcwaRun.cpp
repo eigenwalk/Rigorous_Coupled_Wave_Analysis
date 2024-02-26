@@ -395,6 +395,8 @@ auto RCWA::setToeplitzMatrix(int& wid)->void
 	}
 
 	auto N = setNormalVectorField(voxel[i], i);
+	//Nx = N["Nx"]
+	//Ny = N["Ny"]
 
     cx_mat eps_fft = fft2(voxel[i])/(voxel[i].n_rows * voxel[i].n_cols);
     cx_mat eps_fft_i = fft2(1/voxel[i])/(voxel[i].n_rows * voxel[i].n_cols);
@@ -434,6 +436,9 @@ auto RCWA::setToeplitzMatrix(int& wid)->void
 
 auto RCWA::setNormalVectorField(cx_mat& M, int i)->map<string, mat>
 {
+  // Normal vector method for the RCWA with automated vector field generation
+  // by Peter Gotz et al. (2008) Optical Express
+
   map<string, mat> Norm;
   mat R = abs(M);
   int y_num = R.n_rows;
@@ -475,16 +480,82 @@ auto RCWA::setNormalVectorField(cx_mat& M, int i)->map<string, mat>
 //  nx.replace(datum::nan, 0);
 //  ny.replace(datum::nan, 0);
 
-  saveArma(M, "gcon_M", i);
-  saveArma(gcon, "gcon", i);
-  saveArma(gcon2, "gcon2", i);
-  saveArma(nx, "normal_x", i);
-  saveArma(ny, "normal_y", i);
+  // save normal vector at boundaries
+  map<pair<int, int>, pair<double, double>> nvb;
+  findNVb(nvb, nx, ny);
+  updateNV(nvb, nx, ny);
+  normalizeNV(nx, ny);
 
   Norm["Nx"] = nx;
   Norm["Ny"] = ny;
 
+  //saveArma(M, "gcon_M", i);
+  //saveArma(gcon, "gcon", i);
+  //saveArma(gcon2, "gcon2", i);
+  saveArma(nx, "normal_x", i);
+  saveArma(ny, "normal_y", i);
+
   return Norm;
+}
+
+auto RCWA::normalizeNV(mat& Nx, mat& Ny)->void
+{
+  
+  int rows = Nx.n_rows;
+  int cols = Nx.n_cols;
+  for(int j = 0; j < rows; ++j){
+    for(int i = 0; i < cols; ++i){
+      double ds = sqrt(pow(Nx(j, i), 2) + pow(Ny(j, i), 2));
+	  Nx(j, i) /= ds;
+	  Ny(j, i) /= ds;
+	}
+  }
+}
+
+auto RCWA::updateNV(map<pair<int, int>, pair<double, double>>& nvb, mat& Nx, mat& Ny)->void
+{
+  int rows = Nx.n_rows;
+  int cols = Nx.n_cols;
+  for(auto& mp: nvb){
+    auto key = mp.first;
+    auto val = mp.second;
+    int ix = key.first;
+    int iy = key.second;
+    double nx = val.first;
+    double ny = val.second;
+    for(int j = 0; j < rows; ++j){
+      for(int i = 0; i < cols; ++i){
+  	    if (i == ix and j == iy) continue;
+          double rxy = 1.0 * pow(i - ix, 2) + pow(j - iy, 2);
+          double nxx = (nx / rxy);
+          double nyy = (ny / rxy);
+		  //cout << "rxy, nx, ny, nxx, nyy: " << rxy << " " << nx << " " << ny << " " << nxx << " " << nyy << endl;
+  	      Nx(j, i) += nxx;
+      	  Ny(j, i) += nyy;
+        }
+	}
+  }
+}
+
+
+
+auto RCWA::findNVb(map<pair<int, int>, pair<double, double>>& nvb, mat& Nx, mat& Ny)->void
+{
+  int rows = Nx.n_rows;
+  int cols = Nx.n_cols;
+  int num_nvc = 0;
+  for(int j = 0; j < rows; ++j){
+    for(int i = 0; i < cols; ++i){
+      double nx = Nx(j, i);
+      double ny = Ny(j, i);
+	  if (abs(nx) > 0.005 or abs(ny) > 0.005){
+        pair ixy(i, j);
+		pair nxy(nx, ny);
+        nvb[ixy] = nxy;
+		num_nvc++;
+	  }
+	}
+  } 
 }
 
 auto RCWA::fftshift2d(const cx_mat& X)->cx_mat

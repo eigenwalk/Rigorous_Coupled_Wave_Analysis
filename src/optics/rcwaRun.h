@@ -56,6 +56,9 @@ class RCWA
 
 		template <typename T>
 		auto censhift2d(const T& X)->T;
+		auto findNVb(map<pair<int, int>, pair<double, double>>& nvb, mat& Nx, mat& Ny)->void;
+		auto updateNV(map<pair<int, int>, pair<double, double>>& nvb, mat& Nx, mat& Ny)->void;
+		auto normalizeNV(mat& Nx, mat& Ny)->void;
 
 	public:
 		Input m_input;

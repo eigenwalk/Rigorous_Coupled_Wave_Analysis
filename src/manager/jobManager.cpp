@@ -47,6 +47,7 @@ auto JobManager::structureUpdate(Input& input, const YAML::Node& in)->bool
 	fs::path cur_path = fs::current_path();
 	input.voxlib = in["Structure"]["folder"].as<std::string>();
 	input.voxel = in["Structure"]["voxel_file"].as<std::string>();
+	input.nvmode = in["Structure"]["NV_method"].as<bool>();
 	input.voxel_fullpath = cur_path.generic_string() + "/" + input.voxlib + "/" + input.voxel;
 
 	//if (input.stack.size() != input.thick.size()){

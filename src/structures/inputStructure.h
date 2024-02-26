@@ -26,6 +26,7 @@ struct Input{
 	string voxlib;
 	string voxel;
 	string voxel_fullpath;
+	bool nvmode;
 	string nklib;
 	vector<float> wavelength;
 	vector<float> polar_angles;
