@@ -1,8 +1,10 @@
 ## Rigorous Coupled Wave Analysis (RCWA) from Maxwell equation
 
 This simulation software is not yet complete. 
+
 More functions will be implemented soon.
-Notable Implemented features are
+
+Notable Implemented features are,
  - Inverse rule
  - Normal vector method
  - 3D voxel input
