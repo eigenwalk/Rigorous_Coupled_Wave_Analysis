@@ -1,4 +1,4 @@
-n_x	200	n_y	200	mesh_xy	2	mesh_z	-1	n_layers	2
+nx	200	ny	200	dxy	2	dz	-1	n_layers	2
 0	Air	1	Si3N4	2	Si
 mesh_z	50	200
 Layer1

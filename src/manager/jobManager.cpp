@@ -25,7 +25,7 @@ auto JobManager::start()->void
 
 auto JobManager::makeReport()->void
 {
-    cout << "[INFO] Optics Transfer Matrix Method Simulation Done Successfully.." << endl;
+    cout << "[INFO] RCWA Simulation Done Successfully.." << endl;
 }
 
 auto JobManager::printModelInfo()->void

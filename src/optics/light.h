@@ -37,6 +37,9 @@ class Light
 	  vec m_Py_inc; 
 	  vec m_Pxy_inc; 
 	  vec m_delta_inc;
+	  cx_vec m_kx;
+	  cx_vec m_ky;
+	  cx_vec m_kz;
 	  cx_mat m_Kx;
 	  cx_mat m_Ky;
 	  cx_mat m_Kz;

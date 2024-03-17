@@ -1,4 +1,5 @@
 #include "light.h" 
+#include <stdlib.h>
 	
 #define PI 3.1415926535897
 #define RAD PI/180
@@ -20,6 +21,7 @@ auto Light::setKvector(const double& wav, const double& polar, const double& azi
 
 
   // m_k0 to be used in (z := k0 * z for X; exp(-k0*lam*thk)). Because Kx/Ky is normalized with k0
+  double nk0 = 1.0;        // Environt fixed to air. 
   m_k0 = 2 * PI / wav;   
   m_ks(0) = sin(polar * RAD) * cos(azi * RAD);
   m_ks(1) = sin(polar * RAD) * sin(azi * RAD);
@@ -48,6 +50,10 @@ auto Light::setKvector(const double& wav, const double& polar, const double& azi
 
   // m_P is The Incident Light Vector!
   m_P = m_P / normP;
+  cout << "[INFO] TE: " << m_input->pol << " TM: " << 1 - m_input->pol << ", E_inc (Ex, Ey, Ez): " << m_P(0) << " " << m_P(1) << " " << m_P(2) << endl;
+  m_kx = cx_vec(m_nHxy, fill::zeros);
+  m_ky = cx_vec(m_nHxy, fill::zeros); 
+  m_kz = cx_vec(m_nHxy, fill::zeros); 
   m_Kx = cx_mat(m_nHxy, m_nHxy, fill::zeros);
   m_Ky = cx_mat(m_nHxy, m_nHxy, fill::zeros); 
   m_Kz = cx_mat(m_nHxy, m_nHxy, fill::zeros); 
@@ -57,11 +63,14 @@ auto Light::setKvector(const double& wav, const double& polar, const double& azi
   for(int i = 0; i < m_2nhx; ++i){
     for(int j = 0; j < m_2nhy; ++j){
       int pos = i * m_2nhx + j;
-	  m_Kx(pos, pos) = m_ks(0) - (2 * PI * m_ivec(i) / m_Lx);
-	  m_Ky(pos, pos) = m_ks(1) - (2 * PI * m_jvec(j) / m_Ly);
-	  m_Kz(pos, pos) = sqrt(1 - pow(m_ks(0),2) - pow(m_ks(1),2));
-	  m_Kz_r(pos, pos) = sqrt(1 - pow(m_ks(0),2) - pow(m_ks(1),2));
-	  m_Kz_t(pos, pos) = sqrt(1 - pow(m_ks(0),2) - pow(m_ks(1),2));
+	  m_kx(pos) = nk0 * m_ks(0) - (2 * PI * m_jvec(j) / m_Lx / m_k0); 
+	  m_ky(pos) = nk0 * m_ks(1) - (2 * PI * m_ivec(i) / m_Ly / m_k0);
+	  m_kz(pos)   = -conj(sqrt(nk0 - pow(m_kx(pos), 2) - pow(m_ky(pos), 2)));
+	  m_Kx(pos, pos) = nk0 * m_ks(0) - (2 * PI * m_jvec(j) / m_Lx / m_k0); 
+	  m_Ky(pos, pos) = nk0 * m_ks(1) - (2 * PI * m_ivec(i) / m_Ly / m_k0);
+	  m_Kz(pos, pos)   = -conj(sqrt(nk0 - pow(m_Kx(pos, pos), 2) - pow(m_Ky(pos, pos), 2)));
+	  m_Kz_r(pos, pos) = m_Kz(pos, pos);
+	  m_Kz_t(pos, pos) = m_Kz(pos, pos);
     }
   }
 }
