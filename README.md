@@ -8,9 +8,9 @@ Notable Implemented features are,<br>
  - Normal vector method
  - 3D voxel input
  - NK libraries
+ - Redheffer Matrix multiplication
 
 Thing to be implemted, <br>
- - Redheffer Matrix multiplication
  - Nearfield extraction
  - Optical Images at certain image plane considering fourier optics (optical system)
  - Reflection/Transmission calculation
