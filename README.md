@@ -9,12 +9,13 @@ Notable Implemented features are,<br>
  - 3D voxel input
  - NK libraries
  - Redheffer Matrix multiplication
-
-Thing to be implemted, <br>
- - Nearfield extraction
- - Optical Images at certain image plane considering fourier optics (optical system)
  - Reflection/Transmission calculation
+
+Thing to be implemted in the future, <br>
+ - infinite substrate (other than air)
+ - Nearfield extraction
  - 3D voxel generator
+ - Optical Images at certain image plane considering fourier optics (optical system)
 
 References<br>
 [1] CEM Lectures on youtube given by Dr. Raymond Rumpf<br>
