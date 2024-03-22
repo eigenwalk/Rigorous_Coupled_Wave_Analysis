@@ -136,7 +136,6 @@ auto RCWA::loadVoxel()->bool
           if(!checkvLength<int>(vox_v, m_input.nx)) return false;
           fillVoxel(vox_v, mat_lay, j);
         }
-        cout << "debug: " << idx2 << endl;
         m_stack[idx2-1] = mat_lay;
       }
       ++idx;
@@ -264,6 +263,7 @@ auto RCWA::sleep(int ms)->void
 
 auto RCWA::scatteringMatrix(int& i, int& j, int& k)->void
 {
+  cout << "[INFO] scatteringMatrix called " << endl;
   cx_mat W_air, V_air;
   cx_vec eigval_air;    // Actually not used 
   cx_mat A_air, B_air;
@@ -272,7 +272,7 @@ auto RCWA::scatteringMatrix(int& i, int& j, int& k)->void
   getEigen(W_air, V_air, eigval_air, "air", 0);
   getAB(A_air, B_air, W_air, V_air);
   getSmat_r(Smat_R, A_air, B_air);
-  getSmat_t(Smat_T, A_air, B_air);   // Singular problem. Later to be solved
+  getSmat_t(Smat_T, A_air, B_air);
 
   // Layers Loop!
   vector<cx_mat> Smat_L(4);
@@ -283,9 +283,10 @@ auto RCWA::scatteringMatrix(int& i, int& j, int& k)->void
     cx_mat W, V, A, B;
 	cx_vec eigval;
     getEigen(W, V, eigval, "layer", i);
-	cx_mat X = diagmat(exp(-m_light->m_k0 * eigval * thk));
     getAB(A, B, W_air, V_air, W, V);
+	cx_mat X = diagmat(exp(-m_light->m_k0 * eigval * thk));
     getSmat_l(Smat_i, A, B, X);
+
     if (i == 0){
       Smat_L = Smat_i;
 	}	
@@ -301,20 +302,37 @@ auto RCWA::scatteringMatrix(int& i, int& j, int& k)->void
 
 auto RCWA::calcRT(vector<cx_mat>& Smat, cx_mat& W)->void
 {
+  cout << "Calculate RT " << endl;
   // Notice : Surrounding is assumed to be Air.
   //cx_vec c_src = solve(W, m_light->m_Pxy_inc); 
   //cx_vec c_src = m_light->m_Pxy_inc; 
   cx_vec E_r_xy = W * Smat[0] * m_light->m_Pxy_inc;
   cx_vec E_t_xy = W * Smat[2] * m_light->m_Pxy_inc;
-  E_r_xy.print("R_xy");
+
   cx_vec E_r_x = E_r_xy.subvec(0, m_light->m_nHxy-1);
   cx_vec E_r_y = E_r_xy.subvec(m_light->m_nHxy, 2 * m_light->m_nHxy - 1);
   cx_vec E_t_x = E_t_xy.subvec(0, m_light->m_nHxy-1);
   cx_vec E_t_y = E_t_xy.subvec(m_light->m_nHxy, 2 * m_light->m_nHxy - 1);
-  E_r_x.print("R_x");
-  E_r_y.print("R_y");
-  auto I_xy = pow(E_r_x, 2) + pow(E_r_y, 2);
-  I_xy.print("R");
+  cx_vec E_r_z = -(E_r_x % m_light->m_kx + E_r_y % m_light->m_ky) / m_light->m_kz;
+
+  // Notice : If infinite substrate to be desired, kz needs to be recalculated considerging substrate nk^2. Ex. kz = nk^2 - kx^2 - kx^2. Also, reflectance W_ref should be modified.
+  cx_vec E_t_z = -(E_t_x % m_light->m_kx + E_t_y % m_light->m_ky) / m_light->m_kz;
+  vec E_r_x2 = pow(abs(E_r_x), 2);
+  vec E_r_y2 = pow(abs(E_r_y), 2);
+  vec E_r_z2 = pow(abs(E_r_z), 2);
+  vec E_t_x2 = pow(abs(E_t_x), 2);
+  vec E_t_y2 = pow(abs(E_t_y), 2);
+  vec E_t_z2 = pow(abs(E_t_z), 2);
+
+  vec I_ref = (E_r_x2 + E_r_y2 + E_r_z2) % real(-m_light->m_kz / m_light->m_ks(2));
+  vec I_trn = (E_t_x2 + E_t_y2 + E_t_z2) % real(m_light->m_kz_t / m_light->m_ks(2));
+  double REF = sum(I_ref);
+  double TRN = sum(I_trn);
+
+  I_ref.print("Ref");
+  I_trn.print("Trn");
+  cout << "REF: " << REF << " TRN: " << TRN << " T+R: " << REF+TRN << endl;
+  //auto I_xy = pow(E_r_x, 2) + pow(E_r_y, 2);
 }
 
 auto RCWA::getSmat_r(vector<cx_mat>& Smat, cx_mat& A, cx_mat& B)->void
@@ -351,15 +369,8 @@ auto RCWA::RedhefferProduct(vector<cx_mat>& SA, vector<cx_mat>& SB)->void
   int matxy = m_light->m_nHxy;
   cx_mat I = cx_mat(2 * matxy, 2 * matxy, fill::eye);
   vector<cx_mat> Smat(4);
-
-  // TEMP
-  auto temp1 = I - SB[0]*SA[3];
-  auto temp2 = inv(temp1);
-  //temp1.print("temp1"); 
-  //temp2.print("temp2"); 
-
   Smat[0] = SA[0] + SA[1] * solve((I - SB[0]*SA[3]), SB[0]) * SA[2];
-  Smat[1] = SA[1] * solve((I - SB[0]*SA[3]), SB[1]);
+  Smat[1] = SA[1] * solve((I - SB[0] * SA[3]), SB[1]);
   Smat[2] = SB[2] * solve((I - SA[3]*SB[0]), SA[2]);
   Smat[3] = SB[3] + SB[2] * solve((I - SA[3]*SB[0]), SA[3]) * SB[1];
   SA = Smat;
@@ -367,6 +378,7 @@ auto RCWA::RedhefferProduct(vector<cx_mat>& SA, vector<cx_mat>& SB)->void
 
 auto RCWA::getAB(cx_mat& A, cx_mat& B, cx_mat& W, cx_mat& V)->void
 {
+  cout << "[INFO] getAB called " << endl;
   // size of A : (num_harmx * num_harmy) * 2
   A = solve(W, W) + solve(V, V); //inv(Wi) * Wi + inv(Vi) * Vi;
   B = solve(W, W) - solve(V, V);   //inv(Wi) * Wi - inv(Vi) * Vi
@@ -376,6 +388,7 @@ auto RCWA::getAB(cx_mat& A, cx_mat& B, cx_mat& W, cx_mat& V)->void
 
 auto RCWA::getAB(cx_mat& A, cx_mat& B, cx_mat& W, cx_mat& V, cx_mat& Wi, cx_mat& Vi)->void
 {
+  cout << "[INFO] getAB2 called " << endl;
   A = solve(Wi, W) + solve(Vi, V); //inv(Wi) * Wi + inv(Vi) * Vi;
   B = solve(Wi, W) - solve(Vi, V);   //inv(Wi) * Wi - inv(Vi) * Vi
   setZero(A, err);
@@ -394,6 +407,7 @@ auto RCWA::getABX(cx_mat& A, cx_mat& B, cx_mat& X, cx_mat& Wi, cx_mat& Vi, cx_ma
 
 auto RCWA::getEigen(cx_mat& W, cx_mat& V, cx_vec& eval, string mode, int idx)->void
 {
+  cout << "[INFO] getEigen called " << endl;
   int matxy = m_light->m_nHxy;
   cx_mat I =  cx_mat(matxy, matxy, fill::eye);
   cx_mat I2 = cx_mat(2 * matxy, 2 * matxy, fill::eye);
@@ -406,7 +420,7 @@ auto RCWA::getEigen(cx_mat& W, cx_mat& V, cx_vec& eval, string mode, int idx)->v
     getUniformPQ<double>(Q, eps);
     cx_vec eval = J * m_light->m_kz;
 	cx_vec eval2 = join_cols(eval, eval);
-	cx_vec eval_i = 1/eval2;
+	cx_vec eval_i = conj(1/eval2);  // be carefull with conj. must be a - bi 
     cx_mat Eval_i = diagmat(eval_i);
     V = Q * Eval_i;
 	W = I2;
@@ -415,20 +429,25 @@ auto RCWA::getEigen(cx_mat& W, cx_mat& V, cx_vec& eval, string mode, int idx)->v
   else{
 	  // For layers
 	  double diff = abs(max(max(m_eps2[idx]))-min(min(m_eps2[idx])));
-	  if(diff < 1e-10) { 
-        complex<double> eps = max(max(m_eps2[idx]));
-		//P = I2 * eps;
-        getUniformPQ<complex<double>>(P, Q, eps);    // Uniform layer
+	  if(diff < err) { 
+		cout << "Uniform Layer. layer index: " << idx << endl;
+        getUniformPQ<complex<double>>(P, Q, idx);    // Uniform layer
+        setZero(P, err);
+        setZero(Q, err);
         cx_mat PQ = P * Q;
         setZero(PQ, err);
+
         eig_gen(eval, W, PQ);
-        eval = conj(sqrt(eval));
+        //eval = conj(sqrt(eval));
+        eval = sqrt(eval);
 		cx_vec eval_i = 1/eval;
         cx_mat Eval_i = diagmat(eval_i);
         V = Q * W * Eval_i;
+
 	  }
 	  else{
         // Patterned layer
+		cout << "Patterned Layer. layer index: " << idx << endl;
         cx_mat toep_xx = m_toep_xx[idx];
         cx_mat toep_yy = m_toep_yy[idx];
         cx_mat toep_i  = inv(m_toep[idx]);
@@ -458,6 +477,7 @@ auto RCWA::getEigen(cx_mat& W, cx_mat& V, cx_vec& eval, string mode, int idx)->v
 template <typename T>
 auto RCWA::getUniformPQ(cx_mat& Q, T& eps)->void
 {
+  cout << "[INFO] getUniformPQ called " << endl;
   // permeability is assumed to be 1	
   int matxy = m_light->m_nHxy;
   cx_mat I = cx_mat(matxy, matxy, fill::eye);
@@ -468,20 +488,25 @@ auto RCWA::getUniformPQ(cx_mat& Q, T& eps)->void
 }
 
 template <typename T>
-auto RCWA::getUniformPQ(cx_mat& P, cx_mat& Q, T& eps)->void
+auto RCWA::getUniformPQ(cx_mat& P, cx_mat& Q, int& idx)->void
 {
+  cout << "[INFO] getUniformPQ2 called " << endl;
   // permeability is assumed to be 1	
   int matxy = m_light->m_nHxy;
   cx_mat I = cx_mat(matxy, matxy, fill::eye);
-  cx_mat Eps_i = inv(I * eps); 
+  //cx_mat Eps_i = inv(I * eps); 
 
-  P.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * Eps_i * m_light->m_Ky;
-  P.submat(0, matxy, matxy-1, 2*matxy-1) = I - m_light->m_Kx * Eps_i * m_light->m_Kx;
-  P.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * Eps_i * m_light->m_Ky - I;
-  P.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * Eps_i * m_light->m_Kx;
+  // inverse --> solver?
+
+  cx_mat toep_i  = inv(m_toep[idx]);
+  P.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * toep_i * m_light->m_Ky;
+  P.submat(0, matxy, matxy-1, 2*matxy-1) = I - m_light->m_Kx * toep_i * m_light->m_Kx;
+  P.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * toep_i * m_light->m_Ky - I;
+  P.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * toep_i * m_light->m_Kx;
+
   Q.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * m_light->m_Ky;
-  Q.submat(0, matxy, matxy-1, 2*matxy-1) = eps * I - m_light->m_Kx * m_light->m_Kx;
-  Q.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * m_light->m_Ky - eps * I;
+  Q.submat(0, matxy, matxy-1, 2*matxy-1) = m_toep[idx] - m_light->m_Kx * m_light->m_Kx;
+  Q.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * m_light->m_Ky - m_toep[idx];
   Q.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * m_light->m_Kx;
 }
 
@@ -517,10 +542,14 @@ auto RCWA::setToeplitzMatrix(int& wid)->void
 	cx_mat voxel = cx_mat(m_input.ny, m_input.nx, fill::zeros);
 	cx_mat toep = cx_mat(matxy, matxy, fill::zeros);
 	cx_mat toep_i = cx_mat(matxy, matxy, fill::zeros);
+
+	// -- Only for patterned layers
 	cx_mat toep_delta = cx_mat(matxy, matxy, fill::zeros);
 	cx_mat Nxx = cx_mat(matxy, matxy, fill::zeros);
 	cx_mat Nxy = cx_mat(matxy, matxy, fill::zeros);
 	cx_mat Nyy = cx_mat(matxy, matxy, fill::zeros);
+	//  
+
 	for(int iy = 0; iy < m_input.ny; ++iy){
       for(int ix = 0; ix < m_input.nx; ++ix){
           int matidx = Mat(iy, ix);
@@ -530,33 +559,44 @@ auto RCWA::setToeplitzMatrix(int& wid)->void
 	  }
 	}
 	m_eps2[i] = voxel;
-	auto N = setNormalVectorField(voxel, i);
+	double diff = abs(max(max(voxel))-min(min(voxel)));
+	
+	map<string, mat> N;
+	if(diff > err) { 
+	  N = setNormalVectorField(voxel, i);
+	}
 
     cx_mat eps_fft = fft2(voxel)/(voxel.n_rows * voxel.n_cols);
     cx_mat eps_fft_i = fft2(1/voxel)/(voxel.n_rows * voxel.n_cols);
+    cx_mat NXX;
+    cx_mat NYY;
+    cx_mat NXY;
 
-	cx_mat NXX = fft2(N["Nx"]%N["Nx"])/(N["Nx"].n_rows * N["Nx"].n_cols); 
-	cx_mat NYY = fft2(N["Ny"]%N["Ny"])/(N["Ny"].n_rows * N["Ny"].n_cols); 
-	cx_mat NXY = fft2(N["Nx"]%N["Ny"])/(N["Nx"].n_rows * N["Nx"].n_cols); 
+	if(diff > err) { 
+	  NXX = fft2(N["Nx"]%N["Nx"])/(N["Nx"].n_rows * N["Nx"].n_cols); 
+	  NYY = fft2(N["Ny"]%N["Ny"])/(N["Ny"].n_rows * N["Ny"].n_cols); 
+	  NXY = fft2(N["Nx"]%N["Ny"])/(N["Nx"].n_rows * N["Nx"].n_cols); 
+	}
 
     for(int i1 = 0; i1 < m_light->m_2nhx; ++i1){
       for(int j1 = 0; j1 < m_light->m_2nhy; ++j1){
         int I1 = i1 * m_light->m_2nhy + j1;
         for(int i2 = 0; i2 < m_light->m_2nhx; ++i2){
           for(int j2 = 0; j2 < m_light->m_2nhy; ++j2){
-          int J1 = i2 * m_light->m_2nhy + j2;
-		  int I2 = (voxel.n_cols + i1 - i2)%voxel.n_cols;
-		  int J2 = (voxel.n_rows + j1 - j2)%voxel.n_rows;
-		  toep(J1, I1) = eps_fft(J2, I2);
-		  toep_i(J1, I1) = eps_fft_i(J2, I2);
-		  Nxx(J1, I1) = NXX(J2, I2);
-		  Nyy(J1, I1) = NYY(J2, I2);
-		  Nxy(J1, I1) = NXY(J2, I2);
+            int J1 = i2 * m_light->m_2nhy + j2;
+		    int I2 = (voxel.n_cols + i1 - i2)%voxel.n_cols;
+		    int J2 = (voxel.n_rows + j1 - j2)%voxel.n_rows;
+		    toep(J1, I1) = eps_fft(J2, I2);
+		    toep_i(J1, I1) = eps_fft_i(J2, I2);
+	        if(diff > err) { 
+		      Nxx(J1, I1) = NXX(J2, I2);
+		      Nyy(J1, I1) = NYY(J2, I2);
+		      Nxy(J1, I1) = NXY(J2, I2);
+            }
 		  }
 		}
 	  }
 	}
-    cout << "Debug 3 " << endl;
 	// Inverse Rule
 	toep_i = inv(toep_i);
     toep_delta = toep - toep_i;
@@ -566,15 +606,21 @@ auto RCWA::setToeplitzMatrix(int& wid)->void
 	saveArma(toep, "eps_toep", i);
 	saveArma(toep_i, "eps_toep_i", i);
 	saveArma(toep_delta, "eps_toep_delta", i);
-	saveArma(Nxx, "NORM_nxx", i);
-	saveArma(Nyy, "NORM_nyy", i);
-	saveArma(Nxy, "NORM_nxy", i);
 
-	m_toep_xx[i] = toep - toep_delta * Nxx;
-	m_toep_xy[i] = - toep_delta * Nxy;
-	m_toep_yx[i] = - toep_delta * Nxy;
-	m_toep_yy[i] = toep - toep_delta * Nyy;
-	m_toep[i] = toep;
+	if(diff > err) { 
+	  saveArma(Nxx, "NORM_nxx", i);
+	  saveArma(Nyy, "NORM_nyy", i);
+	  saveArma(Nxy, "NORM_nxy", i);
+	  m_toep_xx[i] = toep - toep_delta * Nxx;
+  	  m_toep_xy[i] = - toep_delta * Nxy;
+	  m_toep_yx[i] = - toep_delta * Nxy;
+	  m_toep_yy[i] = toep - toep_delta * Nyy;
+	  m_toep[i] = toep;
+	}
+	else{
+	  m_toep[i] = toep;
+	}
+
   }	
   cout << "[INFO] Setting up toeplitz matrix done" << endl;
 }

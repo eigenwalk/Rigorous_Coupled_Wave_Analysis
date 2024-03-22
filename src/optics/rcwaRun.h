@@ -47,7 +47,7 @@ class RCWA
 		template <typename T>
 		auto getUniformPQ(cx_mat& Q, T& eps)->void;
 		template <typename T>
-		auto getUniformPQ(cx_mat& P, cx_mat& Q, T& eps)->void;
+		auto getUniformPQ(cx_mat& P, cx_mat& Q, int& idx)->void;
 
 		auto getAB(cx_mat& A, cx_mat& B, cx_mat& W, cx_mat& V)->void;
 		auto getAB(cx_mat& A, cx_mat& B, cx_mat& W, cx_mat& V, cx_mat& Wi, cx_mat& Vi)->void;

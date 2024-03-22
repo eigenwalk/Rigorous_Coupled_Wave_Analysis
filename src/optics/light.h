@@ -40,6 +40,7 @@ class Light
 	  cx_vec m_kx;
 	  cx_vec m_ky;
 	  cx_vec m_kz;
+	  cx_vec m_kz_t;
 	  cx_mat m_Kx;
 	  cx_mat m_Ky;
 	  cx_mat m_Kz;
