@@ -241,6 +241,12 @@ auto RCWA::start()->void
       m_Rs[azi_ang][polar_ang].resize(m_waves.size());
       m_Rp[azi_ang][polar_ang].resize(m_waves.size());
       m_R[azi_ang][polar_ang].resize(m_waves.size());
+      m_Ts[azi_ang][polar_ang].resize(m_waves.size());
+      m_Tp[azi_ang][polar_ang].resize(m_waves.size());
+      m_T[azi_ang][polar_ang].resize(m_waves.size());
+      m_As[azi_ang][polar_ang].resize(m_waves.size());
+      m_Ap[azi_ang][polar_ang].resize(m_waves.size());
+      m_A[azi_ang][polar_ang].resize(m_waves.size());
 
       //cout << "Wave[nm] Rs Rp R(total) Ts Tp T(Total) As Ap A(Total)" << endl;
       //#pragma omp parallel for
@@ -333,6 +339,8 @@ auto RCWA::calcRT(vector<cx_mat>& Smat, cx_mat& W)->void
   I_trn.print("Trn");
   cout << "REF: " << REF << " TRN: " << TRN << " T+R: " << REF+TRN << endl;
   //auto I_xy = pow(E_r_x, 2) + pow(E_r_y, 2);
+
+  // To save R, T, A in files (for all scattering angles)
 }
 
 auto RCWA::getSmat_r(vector<cx_mat>& Smat, cx_mat& A, cx_mat& B)->void
@@ -451,21 +459,38 @@ auto RCWA::getEigen(cx_mat& W, cx_mat& V, cx_vec& eval, string mode, int idx)->v
         cx_mat toep_xx = m_toep_xx[idx];
         cx_mat toep_yy = m_toep_yy[idx];
         cx_mat toep_i  = inv(m_toep[idx]);
-        P.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * toep_i * m_light->m_Ky;
-        P.submat(0, matxy, matxy-1, 2*matxy-1) = I - m_light->m_Kx * toep_i * m_light->m_Kx;
-        P.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * toep_i * m_light->m_Ky - I;
-        P.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * toep_i * m_light->m_Kx;
-        
-        Q.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * m_light->m_Ky;
-        Q.submat(0, matxy, matxy-1, 2*matxy-1) = toep_yy - m_light->m_Kx * m_light->m_Kx;
-        Q.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * m_light->m_Ky - toep_xx;
-        Q.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * m_light->m_Kx;
+		if (m_input.nvmode == true)
+		{
+          // NVMode on. 
+          P.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * toep_i * m_light->m_Ky;
+          P.submat(0, matxy, matxy-1, 2*matxy-1) = I - m_light->m_Kx * toep_i * m_light->m_Kx;
+          P.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * toep_i * m_light->m_Ky - I;
+          P.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * toep_i * m_light->m_Kx;
+          
+          Q.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * m_light->m_Ky;
+          Q.submat(0, matxy, matxy-1, 2*matxy-1) = toep_yy - m_light->m_Kx * m_light->m_Kx;
+          Q.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * m_light->m_Ky - toep_xx;
+          Q.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * m_light->m_Kx;
+		}
+		else
+		{
+          P.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * toep_i * m_light->m_Ky;
+          P.submat(0, matxy, matxy-1, 2*matxy-1) = I - m_light->m_Kx * toep_i * m_light->m_Kx;
+          P.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * toep_i * m_light->m_Ky - I;
+          P.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * toep_i * m_light->m_Kx;
+          
+          Q.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * m_light->m_Ky;
+          Q.submat(0, matxy, matxy-1, 2*matxy-1) = m_toep[idx] - m_light->m_Kx * m_light->m_Kx;
+          Q.submat(matxy, 0, 2*matxy-1, matxy-1) = m_light->m_Ky * m_light->m_Ky - m_toep[idx];
+          Q.submat(matxy, matxy, 2*matxy-1, 2*matxy-1) = -1.0 * m_light->m_Ky * m_light->m_Kx;
+		}
 
         cx_mat PQ = P * Q;
         setZero(PQ, err);
-        eig_gen(eval, W, PQ);
+        eig_gen(eval, W, PQ);  // Check point: Eigen value position matter
+		auto temp = toep_i * m_light->m_Ky;
         eval = conj(sqrt(eval));
-		cx_vec eval_i = 1/eval;
+		cx_vec eval_i = conj(1/eval);
         cx_mat Eval_i = diagmat(eval_i);
         V = Q * W * Eval_i;
 	  }
@@ -495,9 +520,6 @@ auto RCWA::getUniformPQ(cx_mat& P, cx_mat& Q, int& idx)->void
   int matxy = m_light->m_nHxy;
   cx_mat I = cx_mat(matxy, matxy, fill::eye);
   //cx_mat Eps_i = inv(I * eps); 
-
-  // inverse --> solver?
-
   cx_mat toep_i  = inv(m_toep[idx]);
   P.submat(0, 0, matxy-1, matxy-1) = m_light->m_Kx * toep_i * m_light->m_Ky;
   P.submat(0, matxy, matxy-1, 2*matxy-1) = I - m_light->m_Kx * toep_i * m_light->m_Kx;
@@ -578,12 +600,32 @@ auto RCWA::setToeplitzMatrix(int& wid)->void
 	  NXY = fft2(N["Nx"]%N["Ny"])/(N["Nx"].n_rows * N["Nx"].n_cols); 
 	}
 
+//    for(int i1 = 0; i1 < m_light->m_2nhx; ++i1){
+//      for(int j1 = 0; j1 < m_light->m_2nhy; ++j1){
+//        int I1 = i1 * m_light->m_2nhy + j1;
+//        for(int i2 = 0; i2 < m_light->m_2nhx; ++i2){
+//          for(int j2 = 0; j2 < m_light->m_2nhy; ++j2){
+//            int J1 = i2 * m_light->m_2nhy + j2;
+//		    int I2 = (voxel.n_cols + i1 - i2)%voxel.n_cols;
+//		    int J2 = (voxel.n_rows + j1 - j2)%voxel.n_rows;
+//		    toep(J1, I1) = eps_fft(J2, I2);
+//		    toep_i(J1, I1) = eps_fft_i(J2, I2);
+//	        if(diff > err) { 
+//		      Nxx(J1, I1) = NXX(J2, I2);
+//		      Nyy(J1, I1) = NYY(J2, I2);
+//		      Nxy(J1, I1) = NXY(J2, I2);
+//            }
+//		  }
+//		}
+//	  }
+//	}
+
     for(int i1 = 0; i1 < m_light->m_2nhx; ++i1){
       for(int j1 = 0; j1 < m_light->m_2nhy; ++j1){
-        int I1 = i1 * m_light->m_2nhy + j1;
+        int J1 = i1 * m_light->m_2nhy + j1;
         for(int i2 = 0; i2 < m_light->m_2nhx; ++i2){
           for(int j2 = 0; j2 < m_light->m_2nhy; ++j2){
-            int J1 = i2 * m_light->m_2nhy + j2;
+            int I1 = i2 * m_light->m_2nhy + j2;
 		    int I2 = (voxel.n_cols + i1 - i2)%voxel.n_cols;
 		    int J2 = (voxel.n_rows + j1 - j2)%voxel.n_rows;
 		    toep(J1, I1) = eps_fft(J2, I2);
@@ -597,6 +639,7 @@ auto RCWA::setToeplitzMatrix(int& wid)->void
 		}
 	  }
 	}
+
 	// Inverse Rule
 	toep_i = inv(toep_i);
     toep_delta = toep - toep_i;
@@ -818,6 +861,37 @@ auto RCWA::saveArma(mat& M, string file, int id)->void
   }
   newFile1.close();
 }
+
+
+//auto RCWA::saveResult()->void
+//{
+//	for(int j = 0; j < m_angles.size(); ++j){
+//		string ang_s = to_string(m_angles[j]);
+//		ang_s = ang_s.substr(0, ang_s.find('.') + 3);
+//		string file = "TRA_result_angle_" + ang_s + ".txt";
+//		fs::path cur_path = fs::current_path();
+//		string path = cur_path.generic_string() + "/results/";
+//		if (!fs::is_directory(path)) fs::create_directory(path);
+//		string outfile = path + file; 
+//
+//		cout << "[INFO] Saving results.. file: " << file << endl;
+//
+//		// For R and T
+//		double ang = m_angles[j];
+//		//m_Rs[ang];
+//		ofstream newFile;
+//		newFile.open(outfile);
+//
+//		newFile << "wavelength[nm]" << '\t' <<  "Rs" << '\t' << "Rp"  << '\t' << "R" << '\t' <<  "Ts" << '\t' <<  "Tp" << '\t' <<  "T"  << '\t' <<  "As" << '\t' <<  "Ap" << '\t' <<  "A" << '\n';
+//		int idx = 0;
+//		for (auto wave : m_waves){
+//			newFile << wave << "\t" << m_Rs[ang][idx] << "\t"  << m_Rp[ang][idx] << "\t" << m_R[ang][idx] << "\t" << m_Ts[ang][idx] << "\t" << m_Tp[ang][idx] << "\t" << m_T[ang][idx] << "\t" << m_As[ang][idx] << "\t" << m_Ap[ang][idx] << "\t" << m_A[ang][idx] << '\n'; 
+//			++idx;
+//		} 
+//		newFile.close();
+//	}
+//
+//}
 
 
 RCWA::RCWA(){

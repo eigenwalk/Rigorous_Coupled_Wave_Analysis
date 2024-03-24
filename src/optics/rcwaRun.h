@@ -93,6 +93,12 @@ class RCWA
 		map<double, map<double, vector<double>>> m_Rs;
 		map<double, map<double, vector<double>>> m_Rp;
 		map<double, map<double, vector<double>>> m_R;
+		map<double, map<double, vector<double>>> m_Ts;
+		map<double, map<double, vector<double>>> m_Tp;
+		map<double, map<double, vector<double>>> m_T;
+		map<double, map<double, vector<double>>> m_As;
+		map<double, map<double, vector<double>>> m_Ap;
+		map<double, map<double, vector<double>>> m_A;
 		
 		float m_unit;
 };
