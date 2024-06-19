@@ -8,7 +8,7 @@ auto JobManager::init()->void
     YAML::Node config = YAML::LoadFile(m_inputfile);
 	Input input;
 	if (inputmanager(input, config["Configuration"])){
-		m_rcwa = new RCWA(input);
+		m_rcwa = std::make_unique<RCWA>(input);
 	}
 	else{
 		cout << "[Error] Input size is different.." << endl;
@@ -20,7 +20,6 @@ auto JobManager::start()->void
     cout << "[INFO] JobManager started.." << endl;
 	m_rcwa->init();
 	m_rcwa->start();
-	//m_rcwa->saveResult();
 }
 
 auto JobManager::makeReport()->void
@@ -73,5 +72,4 @@ auto JobManager::opticsUpdate(Input& input, const YAML::Node& in)->void
 
 JobManager::~JobManager()
 {
-	delete m_rcwa;
 }

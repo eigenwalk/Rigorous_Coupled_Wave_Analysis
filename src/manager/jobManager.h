@@ -18,7 +18,6 @@ class JobManager
     private:
 
     public:
-        //JobManager(int id, string model){
         JobManager(std::string inputfile){
             m_inputfile = inputfile;
         }
@@ -31,7 +30,7 @@ class JobManager
 		auto structureUpdate(Input& input, const YAML::Node& in)->bool;
 		auto opticsUpdate(Input& input, const YAML::Node& in)->void;
 	public:
-		RCWA* m_rcwa;
+		unique_ptr<RCWA> m_rcwa;
 		std::string m_inputfile;
 		
 };
